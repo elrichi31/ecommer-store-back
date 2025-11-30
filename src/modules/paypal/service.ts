@@ -43,6 +43,16 @@ interface PayPalOrder {
       currency_code: string
       value: string
     }
+    payments?: {
+      captures?: Array<{
+        id: string
+        status: string
+        amount: {
+          currency_code: string
+          value: string
+        }
+      }>
+    }
   }>
 }
 
@@ -282,13 +292,19 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<PayPalOptions
         "POST"
       )
 
-      this.logger_.info(`PayPal payment captured: ${orderId}`)
+      // Extract capture ID from the response
+      const captureId = captureResult.purchase_units?.[0]?.payments?.captures?.[0]?.id
+      const captureAmount = captureResult.purchase_units?.[0]?.payments?.captures?.[0]?.amount
+
+      this.logger_.info(`PayPal payment captured: ${orderId}, capture_id: ${captureId}`)
 
       return {
         data: {
           id: orderId,
+          capture_id: captureId,
           paypal_status: captureResult.status,
           captured: true,
+          currency_code: captureAmount?.currency_code,
         },
       }
     } catch (error) {
@@ -326,24 +342,43 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<PayPalOptions
     const captureId = input.data?.capture_id as string
     const amount = input.amount
 
+    this.logger_.info(`PayPal refundPayment - data received: ${JSON.stringify(input.data)}, amount: ${amount}, amount type: ${typeof amount}`)
+
     if (!captureId) {
+      this.logger_.error(`PayPal refund failed - No capture_id in payment data. Available data: ${JSON.stringify(input.data)}`)
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "PayPal capture ID is required for refunds"
+        "PayPal capture ID is required for refunds. The payment may not have been captured properly."
       )
     }
 
     try {
       const refundData: Record<string, unknown> = {}
       
-      if (amount) {
-        // Medusa v2 sends amount as decimal, not cents
-        const amountValue = Number(amount).toFixed(2)
-        refundData.amount = {
-          value: amountValue,
-          currency_code: input.data?.currency_code || "USD",
+      if (amount !== undefined && amount !== null) {
+        // Handle BigNumber or regular number - convert to string first then parse
+        let amountNum: number
+        if (typeof amount === 'object' && amount !== null) {
+          // It might be a BigNumber object, try to get its value
+          amountNum = Number(amount.toString())
+        } else {
+          amountNum = Number(amount)
+        }
+
+        this.logger_.info(`PayPal refund - Parsed amount: ${amountNum}`)
+
+        if (!isNaN(amountNum) && amountNum > 0) {
+          const amountValue = amountNum.toFixed(2)
+          refundData.amount = {
+            value: amountValue,
+            currency_code: input.data?.currency_code || "USD",
+          }
+          this.logger_.info(`PayPal refund - Sending amount: ${amountValue} ${input.data?.currency_code || "USD"}`)
         }
       }
+
+      // If no amount specified, PayPal will refund the full capture amount
+      this.logger_.info(`PayPal refund - Request data: ${JSON.stringify(refundData)}`)
 
       const refundResult = await this.paypalRequest(
         `/v2/payments/captures/${captureId}/refund`,
