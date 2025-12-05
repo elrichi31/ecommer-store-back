@@ -2032,7 +2032,7 @@
   resolved "https://registry.npmjs.org/@medusajs/inventory/-/inventory-2.11.3.tgz"
   integrity sha512-MYUd2OgsLj6bzCQWq7X+Ol2nmdky7fy0Mzvn0HLPFHYGDGw2S1vwZ4Lujnn9plQXoryCBuVcJQHb/fP2Ox7HuQ==
 
-"@medusajs/js-sdk@2.11.3":
+"@medusajs/js-sdk@^2.11.3", "@medusajs/js-sdk@2.11.3":
   version "2.11.3"
   resolved "https://registry.npmjs.org/@medusajs/js-sdk/-/js-sdk-2.11.3.tgz"
   integrity sha512-AbIwi5BhIqmD4VS+T5WhA/VvMj2W7iuHVMV7TgPU+nIyioOCiz++M1ky+YxUthgzyf0TgwGbHKRVjawB9NAO1g==
